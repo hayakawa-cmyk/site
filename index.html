@@ -641,12 +641,6 @@
       <h3>Shipping Information</h3>
       <form id="orderForm" onsubmit="submitOrder(event)">
 
-        <!-- Hidden: order data for Formspree -->
-        <input type="hidden" name="_subject" id="fSubject">
-        <input type="hidden" name="order_items" id="fItems">
-        <input type="hidden" name="total_jpy" id="fTotal">
-        <input type="hidden" name="price_date" id="fDate">
-
         <div class="form-row">
           <div class="form-group full">
             <label>Full Name *</label>
@@ -714,7 +708,8 @@
 //  2. Create a new form → set recipient: hayakawa@wotaquest.com
 //  3. Copy the form ID (e.g. "xpzgkwjv") and paste below
 // ═══════════════════════════════════════════════════
-const FORMSPREE_ID = 'xeedorjr';
+// GASデプロイ後にウェブアプリURLをここに貼り付ける
+const GAS_ENDPOINT = 'YOUR_GAS_URL';
 
 const SHEET_ID  = '1HcFwuVKX1_hd_7k2RSKvSLyQhq43OlVtYMU39w5x1Ao';
 const SHEET_GID = '2146968694';
@@ -942,18 +937,8 @@ function openModal() {
     </div>`).join('');
   document.getElementById('mTotal').textContent = fmt(total);
 
-  // Populate hidden fields
-  document.getElementById('fSubject').value = `[Pokemon Card Order] Total: ${fmt(total)} — ${priceDate}`;
-  document.getElementById('fItems').value   = entries.map(([n,v])=>`${n} x${v.qty} (${fmt(v.price*v.qty)})`).join(' | ');
-  document.getElementById('fTotal').value   = fmt(total);
-  document.getElementById('fDate').value    = priceDate;
-
-  // Reset form then re-fill hidden fields
+  // Reset form fields
   document.getElementById('orderForm').reset();
-  document.getElementById('fSubject').value = `[Pokemon Card Order] Total: ${fmt(total)} — ${priceDate}`;
-  document.getElementById('fItems').value   = entries.map(([n,v])=>`${n} x${v.qty} (${fmt(v.price*v.qty)})`).join(' | ');
-  document.getElementById('fTotal').value   = fmt(total);
-  document.getElementById('fDate').value    = priceDate;
 
   document.getElementById('modalResult').classList.remove('show');
   document.getElementById('modalSummary').style.display = '';
@@ -974,32 +959,50 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 async function submitOrder(e) {
   e.preventDefault();
 
-  if (FORMSPREE_ID === 'YOUR_FORM_ID') {
-    alert('Formspree is not configured.\nSet FORMSPREE_ID in the script to your Formspree form ID.');
+  if (GAS_ENDPOINT === 'YOUR_GAS_URL') {
+    alert('GAS endpoint が設定されていません。\nCode.gs をデプロイして GAS_ENDPOINT に URL を貼り付けてください。');
     return;
   }
 
   const btn     = document.getElementById('placeOrderBtn');
   const spinner = document.getElementById('btnSpinner');
-  btn.disabled       = true;
+  btn.disabled          = true;
   spinner.style.display = 'block';
 
   try {
-    const data = new FormData(document.getElementById('orderForm'));
-    const res  = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+    const fd      = new FormData(document.getElementById('orderForm'));
+    const { total, entries } = calcTotals();
+
+    const payload = {
+      full_name:     fd.get('full_name'),
+      email:         fd.get('email'),
+      phone:         fd.get('phone'),
+      address_line1: fd.get('address_line1'),
+      address_line2: fd.get('address_line2'),
+      city:          fd.get('city'),
+      state:         fd.get('state'),
+      zip:           fd.get('zip'),
+      country:       fd.get('country'),
+      order_items:   entries.map(([n,v]) => `${n} x${v.qty} (${fmt(v.price*v.qty)})`).join(' | '),
+      total_jpy:     fmt(total),
+      price_date:    priceDate,
+    };
+
+    // Content-Type を text/plain にしてCORSプリフライトを回避
+    const res  = await fetch(GAS_ENDPOINT, {
       method:  'POST',
-      body:    data,
-      headers: { 'Accept': 'application/json' }
+      headers: { 'Content-Type': 'text/plain' },
+      body:    JSON.stringify(payload),
     });
 
-    if (res.ok) {
+    const json = await res.json();
+    if (json.ok) {
       showResult('success');
       cart = {};
       updateCart();
       renderGrid();
     } else {
-      const json = await res.json().catch(() => ({}));
-      throw new Error(json.error || `Server error (${res.status})`);
+      throw new Error(json.error || 'Unknown error from server');
     }
   } catch (err) {
     showResult('error', err.message);
