@@ -714,7 +714,7 @@
 //  2. Create a new form → set recipient: hayakawa@wotaquest.com
 //  3. Copy the form ID (e.g. "xpzgkwjv") and paste below
 // ═══════════════════════════════════════════════════
-const FORMSPREE_ID = 'YOUR_FORM_ID';   // ← replace this
+const FORMSPREE_ID = 'xeedorjr';
 
 const SHEET_ID  = '1HcFwuVKX1_hd_7k2RSKvSLyQhq43OlVtYMU39w5x1Ao';
 const SHEET_GID = '2146968694';
@@ -796,6 +796,9 @@ function getRank(price, min, max) {
 }
 
 function fmt(n) { return '¥' + n.toLocaleString('ja-JP'); }
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function renderGrid() {
   const grid      = document.getElementById('grid');
@@ -824,18 +827,20 @@ function renderGrid() {
     const div    = document.createElement('div');
     div.className = 'card';
     div.innerHTML = `
-      <div class="card-name">${p.name}</div>
+      <div class="card-name">${escHtml(p.name)}</div>
       <div class="card-price">${fmt(p.price)}<span class="unit">/BOX</span></div>
       <span class="card-rank ${rank.cls}">${rank.label}</span>
       <div class="card-actions">
-        <select class="qty-select" id="qty-${CSS.escape(p.name)}">
+        <select class="qty-select">
           ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option>${n}</option>`).join('')}
         </select>
-        <button class="add-btn ${inCart?'added':''}"
-          onclick="addToCart(${JSON.stringify(p.name)},${p.price})">
+        <button class="add-btn ${inCart?'added':''}">
           ${inCart ? '✓ Added' : 'Add to Cart'}
         </button>
       </div>`;
+    const btn = div.querySelector('.add-btn');
+    const sel = div.querySelector('.qty-select');
+    btn.addEventListener('click', () => addToCart(p.name, p.price, parseInt(sel.value)));
     grid.appendChild(div);
   });
 }
@@ -853,9 +858,7 @@ document.getElementById('search').addEventListener('input', e => {
 });
 
 // ── Cart ────────────────────────────────────────────
-function addToCart(name, price) {
-  const sel = document.getElementById('qty-' + CSS.escape(name));
-  const qty = sel ? +sel.value : 1;
+function addToCart(name, price, qty = 1) {
   cart[name] = cart[name]
     ? { price, qty: cart[name].qty + qty }
     : { price, qty };
@@ -894,20 +897,27 @@ function updateCart() {
   const body = document.getElementById('cartBody');
   if (!entries.length) { body.innerHTML = '<div class="cart-empty">Your cart is empty.</div>'; return; }
 
-  body.innerHTML = entries.map(([name,v]) => `
-    <div class="cart-item">
+  body.innerHTML = entries.map(([name,v], i) => `
+    <div class="cart-item" data-idx="${i}">
       <div class="ci-info">
-        <div class="ci-name">${name}</div>
+        <div class="ci-name">${escHtml(name)}</div>
         <div class="ci-unit">${fmt(v.price)} × ${v.qty} BOX</div>
       </div>
       <div class="qty-ctrl">
-        <button onclick="changeQty(${JSON.stringify(name)},-1)">−</button>
+        <button class="qty-minus">−</button>
         <span>${v.qty}</span>
-        <button onclick="changeQty(${JSON.stringify(name)},1)">＋</button>
+        <button class="qty-plus">＋</button>
       </div>
       <div class="ci-sub">${fmt(v.price*v.qty)}</div>
-      <button class="ci-remove" onclick="removeItem(${JSON.stringify(name)})">✕</button>
+      <button class="ci-remove">✕</button>
     </div>`).join('');
+
+  entries.forEach(([name], i) => {
+    const item = body.querySelector(`[data-idx="${i}"]`);
+    item.querySelector('.qty-minus').addEventListener('click', () => changeQty(name, -1));
+    item.querySelector('.qty-plus').addEventListener('click',  () => changeQty(name,  1));
+    item.querySelector('.ci-remove').addEventListener('click', () => removeItem(name));
+  });
 }
 
 function openCart()  {
