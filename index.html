@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ポケカ価格リスト</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep:    #0d1b2a;
+      --bg-card:    #1b263b;
+      --bg-card2:   #243447;
+      --accent:     #f4a261;
+      --accent2:    #e76f51;
+      --text-main:  #e8e8e8;
+      --text-muted: #8a9bbf;
+      --border:     #2e3f5c;
+      --radius:     10px;
+    }
+
+    body {
+      background: var(--bg-deep);
+      color: var(--text-main);
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, var(--bg-card) 0%, #0d1b2a 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 18px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.03em;
+      flex: 1 1 auto;
+    }
+
+    header h1 span {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 400;
+      display: block;
+      margin-top: 2px;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 7px 14px;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      outline: none;
+      width: 180px;
+      transition: border-color 0.2s;
+    }
+    .search-box:focus { border-color: var(--accent); }
+    .search-box::placeholder { color: var(--text-muted); }
+
+    .sort-btn {
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 7px 14px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .sort-btn:hover, .sort-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Main ── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+
+    .meta-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .meta-bar .label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .meta-bar .label strong {
+      color: var(--accent);
+      font-size: 0.95rem;
+    }
+
+    .count-badge {
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* ── State: loading / error ── */
+    .state-box {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .state-box .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .state-box h2 { font-size: 1rem; color: var(--text-main); margin-bottom: 8px; }
+    .state-box p  { font-size: 0.85rem; line-height: 1.7; }
+    .state-box code {
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.8rem;
+      color: var(--accent);
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      border-color: var(--accent);
+    }
+
+    .card-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.35;
+    }
+
+    .card-price {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+    }
+    .card-price .unit {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      margin-left: 2px;
+    }
+
+    .card-rank {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-weight: 600;
+      align-self: flex-start;
+    }
+    .rank-high { background: rgba(231,111,81,0.18); color: var(--accent2); border: 1px solid rgba(231,111,81,0.4); }
+    .rank-mid  { background: rgba(244,162,97,0.12); color: var(--accent);  border: 1px solid rgba(244,162,97,0.3); }
+    .rank-low  { background: rgba(138,155,191,0.12); color: var(--text-muted); border: 1px solid rgba(138,155,191,0.25); }
+
+    .no-results {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      display: none;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 14px 16px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+      .card-price { font-size: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    ポケカ価格リスト
+    <span>1BOXあたり スニダン参考価格</span>
+  </h1>
+  <div class="header-controls">
+    <input class="search-box" type="text" id="search" placeholder="商品名を検索...">
+    <button class="sort-btn active" id="sortDefault" onclick="setSort('default')">初期順</button>
+    <button class="sort-btn" id="sortAsc"     onclick="setSort('asc')">安い順</button>
+    <button class="sort-btn" id="sortDesc"    onclick="setSort('desc')">高い順</button>
+  </div>
+</header>
+
+<main>
+  <div class="meta-bar">
+    <div class="label">更新日: <strong id="dateLabel">読み込み中...</strong></div>
+    <div class="count-badge" id="countBadge">-</div>
+  </div>
+
+  <div id="stateBox" class="state-box">
+    <div class="spinner"></div>
+    <h2>データを読み込んでいます</h2>
+    <p>スプレッドシートから最新の価格を取得中です...</p>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="no-results" id="noResults">該当する商品が見つかりません</div>
+</main>
+
+<footer>
+  価格データ出典: スニダン（snkrdunk）&nbsp;／&nbsp;1BOXあたり価格（10BOX相場より算出）
+</footer>
+
+<script>
+// ─── 設定 ───────────────────────────────────────────────
+const SHEET_ID  = '1HcFwuVKX1_hd_7k2RSKvSLyQhq43OlVtYMU39w5x1Ao';
+const SHEET_GID = '2146968694';
+const CSV_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+
+// 列インデックス（0始まり）
+const COL_NAME  = 0;  // A: 商品名
+const COL_PRICE = 3;  // D: 1BOXあたり
+const COL_DATE  = 7;  // H: date
+// ────────────────────────────────────────────────────────
+
+let PRODUCTS = [];
+let currentSort   = 'default';
+let currentSearch = '';
+
+// ── CSV パーサー ──────────────────────────────────────────
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cur = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === '"') { inQ = true; }
+      else if (c === ',') { row.push(cur.trim()); cur = ''; }
+      else if (c === '\n' || (c === '\r' && text[i + 1] === '\n')) {
+        if (c === '\r') i++;
+        row.push(cur.trim()); rows.push(row); row = []; cur = '';
+      } else { cur += c; }
+    }
+  }
+  if (cur || row.length) { row.push(cur.trim()); rows.push(row); }
+  return rows;
+}
+
+function toNumber(s) {
+  if (!s) return NaN;
+  return parseInt(s.replace(/[,，¥\s]/g, ''), 10);
+}
+
+// ── スプレッドシート取得 ──────────────────────────────────
+async function loadData() {
+  try {
+    const res = await fetch(CSV_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    const rows = parseCSV(text);
+
+    // ヘッダー行をスキップ（1列目が "Title" または数字でない行）
+    const dataRows = rows.filter(r => {
+      const d = r[COL_DATE];
+      return d && /^\d{4}-\d{2}-\d{2}$/.test(d);
+    });
+
+    if (dataRows.length === 0) throw new Error('有効なデータが見つかりませんでした');
+
+    // 最新日付を取得
+    const latestDate = dataRows.reduce((max, r) => r[COL_DATE] > max ? r[COL_DATE] : max, '');
+
+    // 最新日付の行だけ抽出（元の順序を保持）
+    const latest = dataRows.filter(r => r[COL_DATE] === latestDate);
+
+    PRODUCTS = latest
+      .map(r => ({ name: r[COL_NAME], price: toNumber(r[COL_PRICE]) }))
+      .filter(p => p.name && !isNaN(p.price));
+
+    document.getElementById('dateLabel').textContent = latestDate;
+    document.getElementById('stateBox').style.display = 'none';
+    renderGrid();
+
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+function showError(msg) {
+  document.getElementById('stateBox').innerHTML = `
+    <div class="icon">⚠️</div>
+    <h2>データを取得できませんでした</h2>
+    <p style="margin-bottom:12px">${msg}</p>
+    <p>
+      スプレッドシートの共有設定を<br>
+      <strong style="color:var(--accent)">「リンクを知っている全員」→「閲覧者」</strong><br>
+      に変更してください。
+    </p>
+    <p style="margin-top:10px;font-size:0.78rem;">
+      スプレッドシート → 共有 → 「リンクをコピー」の右の▼ →<br>
+      「リンクを知っている全員」を選択 → 「完了」
+    </p>
+  `;
+}
+
+// ── 描画 ──────────────────────────────────────────────────
+function getRank(price, min, max) {
+  const mid = min + (max - min) * 0.5;
+  const low = min + (max - min) * 0.25;
+  if (price >= mid) return { cls: 'rank-high', label: '高値' };
+  if (price >= low) return { cls: 'rank-mid',  label: '中値' };
+  return                  { cls: 'rank-low',  label: '安値' };
+}
+
+function fmt(n) {
+  return '¥' + n.toLocaleString('ja-JP');
+}
+
+function renderGrid() {
+  const grid      = document.getElementById('grid');
+  const noResults = document.getElementById('noResults');
+  const badge     = document.getElementById('countBadge');
+
+  let items = [...PRODUCTS];
+
+  if (currentSearch) {
+    const q = currentSearch.trim().toLowerCase();
+    items = items.filter(p => p.name.toLowerCase().includes(q));
+  }
+
+  if (currentSort === 'asc')  items.sort((a, b) => a.price - b.price);
+  if (currentSort === 'desc') items.sort((a, b) => b.price - a.price);
+
+  grid.innerHTML = '';
+
+  if (items.length === 0) {
+    noResults.style.display = 'block';
+    badge.textContent = '0件';
+    return;
+  }
+
+  noResults.style.display = 'none';
+  badge.textContent = items.length + '商品';
+
+  const prices = items.map(p => p.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+
+  items.forEach(p => {
+    const rank = getRank(p.price, min, max);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-name">${p.name}</div>
+      <div class="card-price">${fmt(p.price)}<span class="unit">/BOX</span></div>
+      <span class="card-rank ${rank.cls}">${rank.label}</span>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function setSort(type) {
+  currentSort = type;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sort' + type.charAt(0).toUpperCase() + type.slice(1)).classList.add('active');
+  renderGrid();
+}
+
+document.getElementById('search').addEventListener('input', e => {
+  currentSearch = e.target.value;
+  renderGrid();
+});
+
+loadData();
+</script>
+</body>
+</html>
